@@ -12,6 +12,7 @@ local Blacklist = {
     [47241]=true, -- Emblem of Triumph
 }
 
+
 local Status = {
   PENDING = 1,
   BIDDING = 2,
@@ -25,6 +26,14 @@ local Separator = {
   MESSAGE = "&",
   SUBLIST_ELEMENT = "/",
 }
+
+function DKP.Split(str, sep)
+    local t = {}
+    for s in str:gmatch("([^"..sep.."]+)") do
+        table.insert(t, s)
+    end
+    return t
+end
 
 local sessions = {}
 
@@ -74,19 +83,19 @@ end
 
 local function OnCommand(event, player, command)
     PrintInfo(string.format("%s:OnCommand %s by account-name (%d-%s)", ADDON_NAME, command, player:GetAccountId(), player:GetName()))
-    if command == "dkp" then
-        PrintInfo(string.format("%s:OnCommand .dkp by account-name (%d-%s)", ADDON_NAME, player:GetAccountId(), player:GetName()))
-        AIO.Handle(player, ADDON_NAME, "ShowFrame")
-        return false
-    end
-    if command == "dkpopen" then
-        PrintInfo(string.format("%s:OnCommand .dkpopen by account-name (%d-%s)", ADDON_NAME, player:GetAccountId(), player:GetName()))
+    local splitCommand = DKP.Split(command, " ")
+    local cmd, arg = splitCommand[1], splitCommand[2]
+    if cmd == "dkp" and arg == "open" then
+        PrintInfo(string.format("%s:OnCommand '.dkp open' by account-name (%d-%s)", ADDON_NAME, player:GetAccountId(), player:GetName()))
         -- DKPHandlers.RequestPayout(player, true)
         return false
-    end
-    if command == "dkpsync" then
-        PrintInfo(string.format("%s:OnCommand .dkpsync by account-name (%d-%s)", ADDON_NAME, player:GetAccountId(), player:GetName()))
+    elseif cmd == "dkp" and arg == "sync" then
+        PrintInfo(string.format("%s:OnCommand '.dkp sync' by account-name (%d-%s)", ADDON_NAME, player:GetAccountId(), player:GetName()))
         DKPHandlers.RequestSync(player)
+        return false
+    elseif cmd == "dkp" then
+        PrintInfo(string.format("%s:OnCommand .dkp by account-name (%d-%s)", ADDON_NAME, player:GetAccountId(), player:GetName()))
+        AIO.Handle(player, ADDON_NAME, "ShowFrame")
         return false
     end
 end
