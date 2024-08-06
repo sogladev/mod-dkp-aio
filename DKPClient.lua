@@ -110,35 +110,49 @@ function Item:PopulateStaticProperties()
     end
 end
 
-function DKP.DecodeRow(encodedStr)
+function DKP.DecodeItem(encodedStr)
     DKP.print("DKP.DecodeRow")
     print(encodedStr)
     local elements = DKP.Split(encodedStr, Separator.LIST_ELEMENT)
-    local item = Item:CreateForId(elements[2])
-    local row = {
+    local itemInfo = Item:CreateForId(elements[2])
+    local item = {
         id = tonumber(elements[1]),
         status = tonumber(elements[3]),
     }
-    item:PopulateStaticProperties()
-    row.item = item
-    return row
+    itemInfo:PopulateStaticProperties()
+    item.itemInfo = itemInfo
+    return item
 end
 
-function DKPHandlers.SyncResponse(player, encodedItems)
+function DKPHandlers.SyncResponse(player, encodedSession)
     DKP.print("SyncResponse")
-    print(encodedItems)
-    local splitRows = DKP.Split(encodedItems, Separator.ELEMENT)
-    DKP.rows = {}
-    for _, row in pairs(splitRows) do
-        print("Row: ", row)
-        local decodedRow = DKP.DecodeRow(row)
-        table.insert(DKP.rows, decodedRow)
-        print(decodedRow.item.link)
+    print(encodedSession)
+    local splitItems = DKP.Split(encodedSession, Separator.ELEMENT)
+    DKP.items = {}
+    for _, item in pairs(splitItems) do
+        print("Item: ", item)
+        local decodedItem = DKP.DecodeItem(item)
+        table.insert(DKP.items, decodedItem)
+        print(decodedItem.itemInfo.link)
     end
     -- print
-    for _, row in pairs(DKP.rows) do
-        DKP.print(string.format("%d %s", row.id, row.item.link))
+    for _, item in pairs(DKP.items) do
+        DKP.print(string.format("%d %s", item.id, item.itemInfo.link))
     end
     frame:Show()
 end
 
+
+function DKPHandlers.NewItemsAdded(player, encodedItems)
+    DKP.print("NewItems")
+    local splitItems = DKP.Split(encodedItems, Separator.ELEMENT)
+    local newItems = {}
+    for _, item in pairs(splitItems) do
+        local decodedItem = DKP.DecodeItem(item)
+        table.insert(newItems, decodedItem)
+        print(decodedItem.itemInfo.link)
+    end
+    for _, item in pairs(newItems) do
+        DKP.print(string.format("New item added! %s ", item.itemInfo.link))
+    end
+end

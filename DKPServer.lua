@@ -90,10 +90,11 @@ function Session:AddItemById(itemId)
     print("Session:AddItem")
     print(itemId)
     local index = self:GetNextIndex()
-    local itemRow = Item:CreateForId(index, itemId)
-    self.items[index] = itemRow
+    local item = Item:CreateForId(index, itemId)
+    self.items[index] = item
     print("#self.items", #self.items)
     print(string.format("Added item (Entry: %d) to session instanceId %d", itemId, self.id))
+    return item
 end
 
 
@@ -109,6 +110,23 @@ function Session:Encode()
     table.insert(encodedItems, encodedItem)
   end
   return table.concat(encodedItems, Separator.ELEMENT)
+end
+
+
+function Session:OnNewItems(newItems)
+    -- Encode new items
+    local encodedItems = {}
+    for _, item in pairs(newItems) do
+        local encodedItem = item:Encode()
+        table.insert(encodedItems, encodedItem)
+    end
+    local encodedItemsStr = table.concat(encodedItems, Separator.ELEMENT)
+    -- Announce new items
+    for i, playerGUID in pairs(self.playerGUIDs) do
+        local player = GetPlayerByGUID(playerGUID)
+        player:SendAreaTriggerMessage("New items added to loot session")
+        AIO.Handle(player, ADDON_NAME, "NewItemsAdded", encodedItemsStr)
+    end
 end
 
 
@@ -140,16 +158,20 @@ local function OnLootFrameOpen(event, packet, player)
         end
     end
     -- filter and add items to session
+
     local session = Session:CreateForPlayer(player)
+    local newItems = {}
     for _, loot_data in pairs(items) do
         if not loot_data.needs_quest and not BlacklistItems[loot_data.id] then
-            session:AddItemById(loot_data.id)
+            local item = session:AddItemById(loot_data.id)
+            table.insert(newItems, item)
             loot:RemoveItem(loot_data.id)
             nItems = nItems - 1
         end
     end
     loot:UpdateItemIndex()
     loot:SetUnlootedCount(nItems) -- update loot item count
+    session:OnNewItems(newItems)
     session:OnChange()
 end
 
