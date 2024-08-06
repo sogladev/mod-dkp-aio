@@ -7,6 +7,7 @@ AIO.AddHandlers(ADDON_NAME, DKPHandlers)
 
 local PLAYER_EVENT_ON_COMMAND  = 42 -- (event, player, command, chatHandler) - player is nil if command used from console. Can return false
 local PACKET_EVENT_ON_PACKET_RECEIVE = 5 -- (event, packet, player) - Player only if accessible. Can return false, newPacket
+local CMSG_LOOT = 0x15D
 
 local Sessions = {}
 
@@ -18,6 +19,7 @@ local Status = {
   PENDING = 1,
   BIDDING = 2,
   ASSIGNED = 3,
+  CLAIMED = 4,
 }
 
 local Separator = {
@@ -36,11 +38,12 @@ function DKP.Split(str, sep)
     return t
 end
 
+
 local Item = {}
 Item.__index = Item
 DKP.Item = Item
 function Item:CreateForId(index, id)
-    local item = {id=index, itemId=id, status=Status.PENDING} -- TODO: add item_soulbound_trade_data (player low guids)
+    local item = {id=index, itemId=id, status=Status.PENDING}
     setmetatable(item, Item)
     return item
 end
@@ -60,6 +63,14 @@ function Session:CreateForPlayer(player)
     print("Session:CreateForInstanceId: ", instanceId)
     local session = {id = instanceId, items = {}}
     -- TODO: add session defaults like expiration, minIncrement, minPrice
+    -- add participants
+    local group = player:GetGroup()
+    local groupPlayers = group:GetMembers()
+    local playerGUIDs = {}
+    for _, player in pairs(groupPlayers) do
+        table.insert(playerGUIDs, player:GetGUID())
+    end
+    session.playerGUIDs = playerGUIDs
     setmetatable(session, Session)
     Sessions[instanceId] = session
     return session
@@ -68,7 +79,7 @@ end
 
 function Session:GetNextIndex()
   local maxIndex = 0
-  for index in pairs(self.items) do
+  for index, _ in pairs(self.items) do
     maxIndex = math.max(maxIndex, index)
   end
   return maxIndex + 1
@@ -79,7 +90,6 @@ function Session:AddItemById(itemId)
     print("Session:AddItem")
     print(itemId)
     local index = self:GetNextIndex()
-    -- local itemRow = {id=index, itemId=itemId, status=Status.PENDING} -- TODO: add item_soulbound_trade_data (player low guids)
     local itemRow = Item:CreateForId(index, itemId)
     self.items[index] = itemRow
     print("#self.items", #self.items)
@@ -88,7 +98,7 @@ end
 
 
 function Session:SetItemClaimed(itemId)
-    self.items[itemId].claimed = true
+    self.items[itemId].status = Status.CLAIMED
 end
 
 
@@ -102,6 +112,14 @@ function Session:Encode()
 end
 
 
+function Session:OnChange()
+    for i, playerGUID in pairs(self.playerGUIDs) do
+        local player = GetPlayerByGUID(playerGUID)
+        DKPHandlers.RequestSync(player)
+    end
+end
+
+
 local function OnLootFrameOpen(event, packet, player)
     local selection = player:GetSelection()
     local creature = selection:ToCreature()
@@ -110,6 +128,7 @@ local function OnLootFrameOpen(event, packet, player)
     print("GetItems")
     local items = loot:GetItems()
     local nItems = #loot:GetItems()
+    -- prints
     print("Printing items")
     for i, loot_data in ipairs(items) do
         print("------------", i)
@@ -131,6 +150,7 @@ local function OnLootFrameOpen(event, packet, player)
     end
     loot:UpdateItemIndex()
     loot:SetUnlootedCount(nItems) -- update loot item count
+    session:OnChange()
 end
 
 
@@ -145,7 +165,7 @@ function DKPHandlers.RequestSync(player)
 end
 
 
-function DKPHandlers.RequestClaim(player)
+function DKPHandlers.RequestClaim(player, id)
     PrintInfo(string.format("%s:DKPHandlers.RequestClaim(player) by account-name (%d-%s)", ADDON_NAME, player:GetAccountId(), player:GetName()))
     local session = Session:CreateForPlayer(player)
     if not session then
@@ -153,14 +173,13 @@ function DKPHandlers.RequestClaim(player)
         return
     end
     -- select item
-    local row = session.rows[1] -- take first item for testing
-    local itemId = row.itemId
+    local item = session.items[id] -- take first item for testing
+    local itemId = item.itemId
     -- add item
-    if not row.claimed then
-        player:AddItem(itemId, 1)
+    if item.status ~= Status.CLAIMED then
+        player:AddItem(itemId, 1) -- (entry, count)
+        session:SetItemClaimed(id)
     end
-    -- TODO: restore tradeable item
-    session:SetRowClaimed(1)
 end
 
 
@@ -178,7 +197,10 @@ local function OnCommand(event, player, command)
         return false
     elseif cmd == "dkp" and arg == "claim" then
         PrintInfo(string.format("%s:OnCommand '.dkp claim' by account-name (%d-%s)", ADDON_NAME, player:GetAccountId(), player:GetName()))
-        DKPHandlers.RequestClaim(player)
+        DKPHandlers.RequestClaim(player, 1) -- id 1 for testing
+        return false
+    elseif cmd == "dkp" and arg == "test" then
+        PrintInfo(string.format("%s:OnCommand '.dkp test' by account-name (%d-%s)", ADDON_NAME, player:GetAccountId(), player:GetName()))
         return false
     elseif cmd == "dkp" then
         PrintInfo(string.format("%s:OnCommand .dkp by account-name (%d-%s)", ADDON_NAME, player:GetAccountId(), player:GetName()))
@@ -187,6 +209,5 @@ local function OnCommand(event, player, command)
     end
 end
 
-
 RegisterPlayerEvent(PLAYER_EVENT_ON_COMMAND, OnCommand)
-RegisterPacketEvent(0x15D, PACKET_EVENT_ON_PACKET_RECEIVE, OnLootFrameOpen)
+RegisterPacketEvent(CMSG_LOOT, PACKET_EVENT_ON_PACKET_RECEIVE, OnLootFrameOpen)
