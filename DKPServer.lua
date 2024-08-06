@@ -127,9 +127,9 @@ local function OnLootFrameOpen(event, packet, player)
             session:AddItemById(loot_data.id)
             loot:RemoveItem(loot_data.id)
             nItems = nItems - 1
-            loot:UpdateItemIndex()
         end
     end
+    loot:UpdateItemIndex()
     loot:SetUnlootedCount(nItems) -- update loot item count
 end
 
