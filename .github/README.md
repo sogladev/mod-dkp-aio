@@ -2,6 +2,12 @@
 
 [English](README.md) | [Español](README_ES.md)
 
+ ## Requirements
+AIO https://github.com/Rochet2/AIO/tree/master
+
+apply diff to Eluna to allow for Loot methods
+https://github.com/iThorgrim/lua_aoe_loot/blob/main/eluna_modifications/azerothcore_eluna.diff
+
 
 ## How to create your own module
 
