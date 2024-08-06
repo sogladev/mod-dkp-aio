@@ -5,14 +5,14 @@ local DKPHandlers = {}
 local DKP = {}
 AIO.AddHandlers(ADDON_NAME, DKPHandlers)
 
-local PLAYER_EVENT_ON_STORE_NEW_ITEM = 53
 local PLAYER_EVENT_ON_COMMAND  = 42 -- (event, player, command, chatHandler) - player is nil if command used from console. Can return false
 local PACKET_EVENT_ON_PACKET_RECEIVE = 5 -- (event, packet, player) - Player only if accessible. Can return false, newPacket
 
-local Blacklist = {
-    [47241]=true, -- Emblem of Triumph
-}
+local Sessions = {}
 
+local BlacklistItems = {
+    [47241] = true, -- Emblem of Triumph
+}
 
 local Status = {
   PENDING = 1,
@@ -36,42 +36,71 @@ function DKP.Split(str, sep)
     return t
 end
 
-local sessions = {}
-
-local function OnPlayerEventOnStoreNewItem(event, player, item, count)
-    print("OnPlayerEventOnStoreNewItem")
-	print(player:GetName() .. " won " .. item:GetName() .. " (x" .. count .. ")")
-    -- check if item is on blacklist
-    if Blacklist[item:GetEntry()] then print("OnPlayerEventOnStoreNewItem:blacklist") return end
-    -- add item to session tied to instance
-    local instanceId = player:GetInstanceId()
-    -- get session from instanceId
-    sessions[instanceId] = sessions[instanceId] or {} -- new session if not exists
-    sessions[instanceId].rows = sessions[instanceId].rows or {} -- new rows if not exists
-    local rowId = #sessions[instanceId].rows+1
-    local itemRow = {id=rowId, itemId=item:GetEntry(), status=Status.PENDING} -- add item_soulbound_trade_data (player low guids)
-    table.insert(sessions[instanceId].rows, rowId, itemRow)
-    print(string.format("Added item (Entry: %d, GUIDLow: %d) to session instanceId %d", item:GetEntry(), item:GetGUIDLow(), instanceId))
-    -- remove item from player
-    -- item:SaveToDB() -- Save item to DB before we remove it from the player
-    player:SaveToDB() -- must be called before RemoveItem else crash
-    player:RemoveItem(item, count) -- remove item becomes ghost? can no longer select
-    player:SaveToDB() -- save again to remove item from item_instance ?
-    -- add item to trading blacklist
+local Item = {}
+Item.__index = Item
+DKP.Item = Item
+function Item:CreateForId(index, id)
+    local item = {id=index, itemId=id, status=Status.PENDING} -- TODO: add item_soulbound_trade_data (player low guids)
+    setmetatable(item, Item)
+    return item
 end
 
--- RegisterPlayerEvent(PLAYER_EVENT_ON_STORE_NEW_ITEM, OnPlayerEventOnStoreNewItem)
 
-local function AddItemToSession(player, itemId)
-    local instanceId = player:GetInstanceId()
-    -- get session from instanceId
-    sessions[instanceId] = sessions[instanceId] or {} -- new session if not exists
-    sessions[instanceId].rows = sessions[instanceId].rows or {} -- new rows if not exists
-    local rowId = #sessions[instanceId].rows+1
-    local itemRow = {id=rowId, itemId=itemId, status=Status.PENDING} -- add item_soulbound_trade_data (player low guids)
-    table.insert(sessions[instanceId].rows, rowId, itemRow)
-    print(string.format("Added item (Entry: %d) to session instanceId %d", itemId, instanceId))
+function Item:Encode()
+  return table.concat({self.id, self.itemId, self.status}, Separator.LIST_ELEMENT)
 end
+
+
+local Session = {}
+Session.__index = Session
+DKP.Session = Session
+function Session:CreateForPlayer(player)
+    local instanceId = player:GetInstanceId()
+    if Sessions[instanceId] then return Sessions[instanceId] end
+    print("Session:CreateForInstanceId: ", instanceId)
+    local session = {id = instanceId, items = {}}
+    -- TODO: add session defaults like expiration, minIncrement, minPrice
+    setmetatable(session, Session)
+    Sessions[instanceId] = session
+    return session
+end
+
+
+function Session:GetNextIndex()
+  local maxIndex = 0
+  for index in pairs(self.items) do
+    maxIndex = math.max(maxIndex, index)
+  end
+  return maxIndex + 1
+end
+
+
+function Session:AddItemById(itemId)
+    print("Session:AddItem")
+    print(itemId)
+    local index = self:GetNextIndex()
+    -- local itemRow = {id=index, itemId=itemId, status=Status.PENDING} -- TODO: add item_soulbound_trade_data (player low guids)
+    local itemRow = Item:CreateForId(index, itemId)
+    self.items[index] = itemRow
+    print("#self.items", #self.items)
+    print(string.format("Added item (Entry: %d) to session instanceId %d", itemId, self.id))
+end
+
+
+function Session:SetItemClaimed(itemId)
+    self.items[itemId].claimed = true
+end
+
+
+function Session:Encode()
+  local encodedItems = {}
+  for _, item in pairs(self.items) do
+    local encodedItem = item:Encode()
+    table.insert(encodedItems, encodedItem)
+  end
+  return table.concat(encodedItems, Separator.ELEMENT)
+end
+
 
 local function OnLootFrameOpen(event, packet, player)
     local selection = player:GetSelection()
@@ -92,43 +121,33 @@ local function OnLootFrameOpen(event, packet, player)
         end
     end
     -- filter and add items to session
+    local session = Session:CreateForPlayer(player)
     for _, loot_data in pairs(items) do
-        if not loot_data.needs_quest and not Blacklist[loot_data.id] then
-            AddItemToSession(player, loot_data.id) -- add item by id to session
+        if not loot_data.needs_quest and not BlacklistItems[loot_data.id] then
+            session:AddItemById(loot_data.id)
             loot:RemoveItem(loot_data.id)
             nItems = nItems - 1
             loot:UpdateItemIndex()
         end
     end
     loot:SetUnlootedCount(nItems) -- update loot item count
-  end
-
-function DKP.EncodeRow(row)
-  return table.concat({row.id, row.itemId, row.status}, Separator.LIST_ELEMENT)
 end
 
-function DKP.EncodeSession(session)
-  local encodedRows = {}
-  local rows = session.rows or {}
-  for _, row in pairs(rows) do
-    local encodedRow = DKP.EncodeRow(row)
-    table.insert(encodedRows, encodedRow)
-  end
-  return table.concat(encodedRows, Separator.ELEMENT)
-end
 
 function DKPHandlers.RequestSync(player)
     PrintInfo(string.format("%s:DKPHandlers.RequestSync(player) by account-name (%d-%s)", ADDON_NAME, player:GetAccountId(), player:GetName()))
-    local instanceId = player:GetInstanceId()
-    local session = sessions[instanceId] or {} -- new session if not exists
-    local encodedSession = DKP.EncodeSession(session)
+    local session = Session:CreateForPlayer(player)
+    print("#session.rows", #session.items)
+    print("session id ", session.id)
+    local encodedSession = session:Encode()
+    print("Encoded session: ", encodedSession)
     AIO.Handle(player, ADDON_NAME, "SyncResponse", encodedSession)
 end
 
+
 function DKPHandlers.RequestClaim(player)
     PrintInfo(string.format("%s:DKPHandlers.RequestClaim(player) by account-name (%d-%s)", ADDON_NAME, player:GetAccountId(), player:GetName()))
-    local instanceId = player:GetInstanceId()
-    local session = sessions[instanceId]
+    local session = Session:CreateForPlayer(player)
     if not session then
         PrintError("No session found")
         return
@@ -140,8 +159,8 @@ function DKPHandlers.RequestClaim(player)
     if not row.claimed then
         player:AddItem(itemId, 1)
     end
-    -- set tradeable item
-    sessions[instanceId].rows[1].claimed = true -- set claimed
+    -- TODO: restore tradeable item
+    session:SetRowClaimed(1)
 end
 
 
@@ -167,6 +186,7 @@ local function OnCommand(event, player, command)
         return false
     end
 end
+
 
 RegisterPlayerEvent(PLAYER_EVENT_ON_COMMAND, OnCommand)
 RegisterPacketEvent(0x15D, PACKET_EVENT_ON_PACKET_RECEIVE, OnLootFrameOpen)
