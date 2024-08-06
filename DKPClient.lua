@@ -95,23 +95,25 @@ DKP.Item = Item
 function Item:CreateForId(itemId)
     itemId = tonumber(itemId)
     print("Item:CreateForId: ", itemId)
-    local item = {id = itemId, isBound = false}
-    setmetatable(item, Item)
-    item:PopulateStaticProperties()
-    return item
+    local itemInfo = {id = itemId, isBound = false}
+    setmetatable(itemInfo, Item)
+    itemInfo:PopulateStaticProperties()
+    return itemInfo
 end
+
 
 function Item:PopulateStaticProperties()
     print("Item:PopulateStaticProperties")
     print(self.id)
     self.name, self.link, self.quality, self.ilvl, self.minLevel, self.itemType, self.itemSubType, _, self.equipLoc, self.texture, _, self.classId, self.subclassId = GetItemInfo(self.id)
     if not self.name then
-        DKP:Error("Invalid itemId", self.id)
+        DKP:Error("Invalid name, item likely not in cache", self.id)
     end
 end
 
-function DKP.DecodeItem(encodedStr)
-    DKP.print("DKP.DecodeRow")
+
+function Item:Decode(encodedStr)
+    DKP.print("Item:Decode")
     print(encodedStr)
     local elements = DKP.Split(encodedStr, Separator.LIST_ELEMENT)
     local itemInfo = Item:CreateForId(elements[2])
@@ -124,14 +126,15 @@ function DKP.DecodeItem(encodedStr)
     return item
 end
 
+
 function DKPHandlers.SyncResponse(player, encodedSession)
     DKP.print("SyncResponse")
     print(encodedSession)
     local splitItems = DKP.Split(encodedSession, Separator.ELEMENT)
     DKP.items = {}
-    for _, item in pairs(splitItems) do
-        print("Item: ", item)
-        local decodedItem = DKP.DecodeItem(item)
+    for _, itemStr in pairs(splitItems) do
+        print("Item: ", itemStr)
+        local decodedItem = Item:Decode(itemStr)
         table.insert(DKP.items, decodedItem)
         print(decodedItem.itemInfo.link)
     end
@@ -147,12 +150,12 @@ function DKPHandlers.NewItemsAdded(player, encodedItems)
     DKP.print("NewItems")
     local splitItems = DKP.Split(encodedItems, Separator.ELEMENT)
     local newItems = {}
-    for _, item in pairs(splitItems) do
-        local decodedItem = DKP.DecodeItem(item)
+    for _, itemStr in pairs(splitItems) do
+        local decodedItem = Item:Decode(itemStr)
         table.insert(newItems, decodedItem)
         print(decodedItem.itemInfo.link)
     end
     for _, item in pairs(newItems) do
-        DKP.print(string.format("New item added! %s ", item.itemInfo.link))
+        DKP.print(string.format("added %s", item.itemInfo.link))
     end
 end
