@@ -43,14 +43,14 @@ local Item = {}
 Item.__index = Item
 DKP.Item = Item
 function Item:CreateForId(index, id)
-    local item = {id=index, itemId=id, bid=0, highestBidder="n", status=Status.PENDING}
+    local item = {id=index, itemId=id, bid=0, topBidder="n", status=Status.PENDING}
     setmetatable(item, Item)
     return item
 end
 
 
 function Item:Encode()
-  return table.concat({self.id, self.itemId, self.status, self.bid, self.highestBidder, tostring(self.expiration)}, Separator.LIST_ELEMENT)
+  return table.concat({self.id, self.itemId, self.status, self.bid, self.topBidder, tostring(self.expiration)}, Separator.LIST_ELEMENT)
 end
 
 
@@ -154,8 +154,8 @@ end
 
 function Session:HandleBid(player, id, bid)
     self.items[id].bid = bid
-    self.items[id].highestBidder = player:GetName()
-    self.items[id].highestBidderGUID = player:GetGUID()
+    self.items[id].topBidder = player:GetName()
+    self.items[id].topBidderGUID = player:GetGUID()
     -- update expiration to countdown or add + 10
     self.items[id].expiration = GetGameTime() + 10 -- game time in seconds
     return true

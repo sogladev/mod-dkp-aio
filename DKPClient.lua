@@ -81,7 +81,7 @@ function Item:Decode(encodedStr)
         id = tonumber(elements[1]),
         status = tonumber(elements[3]),
         bid = tonumber(elements[4]),
-        highestBidder = elements[5] or "n",
+        topBidder = elements[5] or "n",
         expiration = elements[6] and tonumber(elements[6]) or 0,
     }
     itemInfo:PopulateStaticProperties()
@@ -229,7 +229,7 @@ local function UpdateCountdownBar(self, dt)
         self.isCountingDown = true
         self:SetMinMaxValues(0, item.countdown)
         self:SetAlpha(0.2)
-        if self.topBidder == "playername" then
+        if self.topBidder == UnitName("player") then
             self:SetStatusBarColor(0, 1, 0)
         else
             self:SetStatusBarColor(1, 0, 0)
@@ -302,7 +302,7 @@ function Client:ConfigureRow(row, item)
         row.bidButton:SetText("Pending")
     end
 
-    row.topBidText:SetText(item.highestBidder ~= "n" and "Top Bid: "..item.highestBidder or "")
+    row.topBidText:SetText(item.topBidder ~= "n" and "Top Bid: "..item.topBidder or "")
     row.topBidAmountText:SetText(item.bid ~= 0 and item.bid or "No bid")
 
     row.countdownBar:CountdownItem(item)
