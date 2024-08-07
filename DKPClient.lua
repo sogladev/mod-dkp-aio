@@ -103,6 +103,7 @@ function DKPHandlers.SyncResponse(player, encodedSession)
         DKP.print(string.format("%d %s", item.id, item.itemInfo.link or ""))
     end
     DKP.client.window:Show()
+    DKP.client:Populate(DKP.items)
 end
 
 
@@ -138,10 +139,10 @@ function Client:Create()
   return client
 end
 
-local scrollWidth = 735
+local scrollWidth = 535
 function Client:CreateWindow()
     local frame = CreateFrame("Frame", "DKPFrame", UIParent)
-    frame:SetSize(800, 500)
+    frame:SetSize(600, 500)
     frame:SetPoint("CENTER")
     frame:SetToplevel(true)
     frame:SetClampedToScreen(true)
@@ -191,7 +192,25 @@ function Client:CreateWindow()
     scrollFrame:SetScrollChild(content)
     frame.content = content
 
+    -- Create status text
+    local statusText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    statusText:SetJustifyH("LEFT")
+    statusText:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 15, 12)
+    statusText:SetHeight(22)
+    statusText:SetText("Total Bidding Status | some status | more text")
     return frame
+end
+
+function Client:ConfigureRow(row, item)
+    local highestBidder = "highestBidder"
+    local topBidAmount = 1234
+    local minBid = 100
+    row.watchButton.texture:SetTexture("Interface\\LFGFrame\\BattlenetWorking4")
+    row.image:SetTexture(item.itemInfo and item.itemInfo.texture or "Interface/Icons/INV_Misc_QuestionMark")
+    row.ilvlText:SetText(item.itemInfo and item.itemInfo.ilvl or "?")
+    row.linkText:SetText(item.itemInfo.link)
+    row.topBidText:SetText(highestBidder)
+    row.topBidAmountText:SetText(topBidAmount)
 end
 
 
@@ -200,11 +219,7 @@ function Client:CreateRow(parent, item)
     local row = CreateFrame("Frame", nil, parent)
     row:SetSize(scrollWidth, 40)
 
-    local itemLink = item.itemInfo.link
-    local itemLinkText = itemLink
     local id = item.id
-    local highestBidder = "highestBidder"
-    local minBid = 100
 
     -- Row background
     local bg = row:CreateTexture(nil, "BACKGROUND")
@@ -225,12 +240,12 @@ function Client:CreateRow(parent, item)
     watchButton:SetHighlightTexture("Interface\\BUTTONS\\UI-Panel-MinimizeButton-Highlight");
     -- watchButton:SetPoint("LEFT", row, "RIGHT", 10, 0)
     watchButton:SetPoint("LEFT", -4, 0)
-    watchButton.texture:SetTexture("Interface\\LFGFrame\\BattlenetWorking4")
+    row.watchButton = watchButton
 
     local image = row:CreateTexture(nil, "ARTWORK") -- OVERLAY
     image:SetSize(32, 32)
     image:SetPoint("LEFT", watchButton, "RIGHT", 8, 0)
-    image:SetTexture(item.itemInfo and item.itemInfo.texture or "Interface/Icons/INV_Misc_QuestionMark")
+    row.image = image
 
     -- icon:SetTexture("Interface/Icons/INV_Misc_QuestionMark") -- Replace with actual icon
     -- row.icon = icon
@@ -240,27 +255,23 @@ function Client:CreateRow(parent, item)
     ilvlText:SetPoint("BOTTOMLEFT", image, 1, 1)
     ilvlText:SetPoint("BOTTOMRIGHT", image, -1, 1)
     ilvlText:SetJustifyH("CENTER")
-    ilvlText:SetText(item.itemInfo and item.itemInfo.ilvl or "?")
+    row.ilvlText = ilvlText
 
     local linkText = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     linkText:SetPoint("TOPLEFT", image, "TOPRIGHT", 8, 0)
     linkText:SetPoint("BOTTOMLEFT", image, "BOTTOMRIGHT", 8, 0)
     linkText:SetJustifyH("LEFT")
-    linkText:SetText(itemLink)
+    row.linkText = linkText
 
     local tooltipRegion = CreateFrame("Button", nil, row)
     tooltipRegion:SetPoint("TOPLEFT", image)
     tooltipRegion:SetPoint("BOTTOMRIGHT", linkText)
 
-
     -- RTL layout
-    local deleteButton = CreateFrame("Button", nil, row, "UIPanelCloseButton")
-    deleteButton:SetPoint("RIGHT", -4, 0)
-    deleteButton:SetSize(24, 24)
-
     local bidButton = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
     bidButton:SetText("Bid")
     bidButton:SetPoint("RIGHT", -8, 0)
+    bidButton:SetPoint("RIGHT", -4, 0)
     bidButton:SetSize(50, 32)
 
     local incrementButton = CreateFrame("Button", nil, row)
@@ -280,15 +291,6 @@ function Client:CreateRow(parent, item)
     bidBox:SetPoint("RIGHT", incrementButton, "LEFT", 2, 0)
     bidBox:SetSize(75, 25)
 
-    local minBidBox = CreateFrame("EditBox", "minBid".."MinBidBox"..id, row, "InputBoxTemplate")
-    minBidBox:SetAutoFocus(false)
-    minBidBox:SetNumeric(true)
-    minBidBox:SetMaxLetters(7)
-    minBidBox:SetTextInsets(0, 13, 0, 0)
-    minBidBox:SetJustifyH("CENTER")
-    minBidBox:SetPoint("RIGHT", deleteButton, "LEFT", 2, 0)
-    minBidBox:SetSize(75, 25)
-
     local minButton = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
     minButton:SetText("Min")
     minButton:SetNormalFontObject("GameFontNormalSmall")
@@ -302,32 +304,6 @@ function Client:CreateRow(parent, item)
     enterBidText:SetJustifyH("LEFT")
     enterBidText:SetHeight(14)
 
-    local enterMinBidText = minBidBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    enterMinBidText:SetPoint("BOTTOMLEFT", minBidBox, "TOPLEFT", -2, -3)
-    enterMinBidText:SetJustifyH("LEFT")
-    enterMinBidText:SetHeight(14)
-
-    local countdownButton = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-    countdownButton:SetText("Countdown")
-    countdownButton:SetPoint("RIGHT", -120, 8)
-    countdownButton:SetSize(80, 16)
-
-    local closeButton = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-    closeButton:SetText("Close")
-    closeButton:SetPoint("RIGHT", -120, -8)
-    closeButton:SetSize(80, 16)
-
-    local reopenButton = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-    reopenButton:SetText("Reopen")
-    reopenButton:SetPoint("RIGHT", -120, 8)
-    reopenButton:SetSize(80, 16)
-
-    local restartAuctionButton = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-    restartAuctionButton:SetText("Restart")
-    restartAuctionButton:SetPoint("RIGHT", -120, -8)
-    restartAuctionButton:SetSize(80, 16)
-    --restartAuctionButton:Disable() -- Disabled since bug, ImportBids table index nil
-
     local errorText = bidBox:CreateFontString(nil, "OVERLAY", "GameFontRedSmall")
     errorText:SetPoint("TOP", bidBox, "BOTTOM", 0, 3)
     errorText:SetJustifyH("LEFT")
@@ -338,16 +314,12 @@ function Client:CreateRow(parent, item)
     bidBoxGold:SetPoint("RIGHT", -6, 0)
     bidBoxGold:SetSize(13, 13)
 
-    local minBidBoxGold = minBidBox:CreateTexture(nil, "OVERLAY")
-    minBidBoxGold:SetTexture("Interface\\MoneyFrame\\UI-GoldIcon")
-    minBidBoxGold:SetPoint("RIGHT", -6, 0)
-    minBidBoxGold:SetSize(13, 13)
-
     local topBidText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     topBidText:SetJustifyH("LEFT")
     topBidText:SetPoint("TOP", enterBidText)
-    topBidText:SetPoint("LEFT", minButton, "LEFT", -200, 0)
+    topBidText:SetPoint("RIGHT", minButton, "LEFT", -15, 0)
     topBidText:SetHeight(14)
+    row.topBidText = topBidText
 
     local topBidAmountText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     topBidAmountText:SetJustifyH("LEFT")
@@ -355,15 +327,7 @@ function Client:CreateRow(parent, item)
     topBidAmountText:SetPoint("RIGHT", topBidText)
     topBidAmountText:SetPoint("TOP", topBidText, "BOTTOM")
     topBidAmountText:SetHeight(22)
-
-    -- SetBids(nil, nil, nil)
-    -- SetErrorText(nil)
-    -- SetMasterButtons(false)
-    -- SetMasterControlsEnabled(false)
-    reopenButton:Disable()
-    reopenButton:Hide()
-    restartAuctionButton:Disable()
-    restartAuctionButton:Hide()
+    row.topBidAmountText = topBidAmountText
     return row
 end
 
@@ -372,6 +336,7 @@ function Client:Populate(items)
     local previousRow
     for i, item in ipairs(items) do
         local row = self:CreateRow(self.window.content, item)
+        self:ConfigureRow(row, item)
         if previousRow then
             row:SetPoint("TOP", previousRow, "BOTTOM", 0, -5)
         else
@@ -390,5 +355,4 @@ local testStr = "1^39252^1+2^39251^1+3^23070^1"
 -- local testStr = "1^39252^1+2^39251^1+3^23070^1+4^23000^1+5^22801^1+6^22808^1+7^22803^1+8^22353^1+9^22804^1+10^22805^1" -- cache
 DKPHandlers.SyncResponse(nil, testStr)
 
-client:Populate(DKP.items)
 print(DKP.items)
