@@ -62,16 +62,23 @@ function Item:CreateForId(itemId)
     return itemInfo
 end
 
-
-function Item:PopulateStaticProperties()
-    print("Item:PopulateStaticProperties")
-    print(self.id)
-    self.name, self.link, self.quality, self.ilvl, self.minLevel, self.itemType, self.itemSubType, _, self.equipLoc, self.texture, _, self.classId, self.subclassId = GetItemInfo(self.id)
-    if not self.name then
-        DKP.Error(string.format("Invalid name, item likely not in cache:  %d", self.id))
-    end
+-- Define ForceLoadItemData outside of ItemSlotRightCheck
+local hiddenTooltip = CreateFrame("GameTooltip", "HiddenTooltipFrame", UIParent, "GameTooltipTemplate")
+hiddenTooltip:SetSize(1, 1)
+hiddenTooltip:SetPoint("CENTER", UIParent, "CENTER")
+hiddenTooltip:Hide()
+function DKP.ForceLoadItemData(itemID)
+    hiddenTooltip:SetOwner(UIParent, "ANCHOR_NONE")
+    hiddenTooltip:SetHyperlink("item:" .. itemID)
 end
 
+function Item:PopulateStaticProperties()
+    self.name, self.link, self.quality, self.ilvl, self.minLevel, self.itemType, self.itemSubType, _, self.equipLoc, self.texture, _, self.classId, self.subclassId = GetItemInfo(self.id)
+    if not self.name then
+        DKP.Error(string.format("Item id: %d not in cache, force loading data..., fixed on next reload or manually sync (.dkp sync)", self.id))
+        DKP.ForceLoadItemData(self.id)
+    end
+end
 
 function Item:Decode(encodedStr)
     DKP.print("Item:Decode")
@@ -411,7 +418,6 @@ function Client:CreateRow(parent, item)
         end
     end
 
-
     local incrementButton = CreateFrame("Button", nil, row)
     incrementButton:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIcon-ScrollUp-Up")
     incrementButton:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight")
@@ -506,7 +512,7 @@ DKP.client = client
 client.window = client:CreateWindow()
 -- add test items
 -- local testStr = "1^39252^1+2^39251^1+3^23070^1"
--- local testStr = "1^39252^1+2^39251^1+3^23070^1+4^23000^1+5^22801^1+6^22808^1+7^22803^1+8^22353^1+9^22804^1+10^22805^1" -- cache
--- DKPHandlers.SyncResponse(nil, testStr)
+local testStr = "1^39252^1+2^39251^1+3^23070^1+4^23000^1+5^22801^1+6^22808^1+7^22803^1+8^22353^1+9^22804^1+10^22805^1" -- cache
+DKPHandlers.SyncResponse(nil, testStr)
 
 print(DKP.items)
