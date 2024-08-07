@@ -81,7 +81,8 @@ function Item:Decode(encodedStr)
         id = tonumber(elements[1]),
         status = tonumber(elements[3]),
         bid = tonumber(elements[4]),
-        highestBidder = elements[5],
+        highestBidder = elements[5] or "n",
+        expiration = elements[6] and tonumber(elements[6]) or 0,
     }
     itemInfo:PopulateStaticProperties()
     item.itemInfo = itemInfo
@@ -104,6 +105,9 @@ function DKPHandlers.SyncResponse(player, encodedSession)
     for _, item in pairs(DKP.items) do
         DKP.print(string.format("%d %s", item.id, item.itemInfo.link or ""))
         DKP.print(string.format("Status %d", item.status))
+        DKP.print(string.format("Expiration %d", item.expiration))
+        DKP.print(string.format("time %d", time()))
+        DKP.print(string.format("Expiration-Time %d", item.expiration-time()))
     end
     DKP.client.window:Show()
     DKP.client:Populate(DKP.items)
@@ -226,7 +230,7 @@ function Client:ConfigureRow(row, item)
         row.bidButton:SetText("Pending")
     end
 
-    row.topBidText:SetText(item.highestBidder and "Top Bid: "..item.highestBidder or "")
+    row.topBidText:SetText(item.highestBidder ~= "n" and "Top Bid: "..item.highestBidder or "")
     row.topBidAmountText:SetText(item.bid ~= 0 and item.bid or "No bid")
 
 end

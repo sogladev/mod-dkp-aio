@@ -43,14 +43,14 @@ local Item = {}
 Item.__index = Item
 DKP.Item = Item
 function Item:CreateForId(index, id)
-    local item = {id=index, itemId=id, bid=0, highestBidder="", status=Status.PENDING}
+    local item = {id=index, itemId=id, bid=0, highestBidder="n", status=Status.PENDING}
     setmetatable(item, Item)
     return item
 end
 
 
 function Item:Encode()
-  return table.concat({self.id, self.itemId, self.status, self.bid, self.highestBidder}, Separator.LIST_ELEMENT)
+  return table.concat({self.id, self.itemId, self.status, self.bid, self.highestBidder, tostring(self.expiration)}, Separator.LIST_ELEMENT)
 end
 
 
@@ -98,12 +98,16 @@ function Session:AddItemById(itemId)
 end
 
 
-function Session:SetItemsPendingToBidding()
-  for i, item in ipairs(self.items) do
-    if item.status == Status.PENDING then
-        self.items[i].status = Status.BIDDING
+function Session:StartBids()
+    -- set items pending to bidding
+    -- set expiration
+    for i, item in ipairs(self.items) do
+        if item.status == Status.PENDING then
+            self.items[i].status = Status.BIDDING
+            local expiration = GetGameTime() + 10 -- game time in seconds
+            self.items[i].expiration = expiration -- userdata
+        end
     end
-  end
 end
 
 
@@ -219,7 +223,7 @@ end
 function DKPHandlers.RequestStart(player)
     PrintInfo(string.format("%s:DKPHandlers.RequestStart(player) by account-name (%d-%s)", ADDON_NAME, player:GetAccountId(), player:GetName()))
     local session = Session:CreateForPlayer(player)
-    session:SetItemsPendingToBidding()
+    session:StartBids()
     session:OnChange()
 end
 
