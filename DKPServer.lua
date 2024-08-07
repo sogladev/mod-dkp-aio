@@ -158,7 +158,6 @@ local function OnLootFrameOpen(event, packet, player)
         end
     end
     -- filter and add items to session
-
     local session = Session:CreateForPlayer(player)
     local newItems = {}
     for _, loot_data in pairs(items) do
