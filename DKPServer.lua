@@ -243,9 +243,17 @@ function DKPHandlers.RequestClaim(player, id)
     local itemId = item.itemId
     -- add item
     if item.status ~= Status.CLAIMED then
-        player:AddItem(itemId, 1) -- (entry, count)
-        session:SetItemClaimed(id)
+        -- check top bid
+        if item.topBidderGUID == player:GetGUID() then
+            local priceInCopper = item.bid * 10000
+            if player:GetCoinage() >= priceInCopper then
+                player:ModifyMoney(-priceInCopper)
+                player:AddItem(itemId, 1) -- (entry, count)
+                session:SetItemClaimed(id)
+            end
+        end
     end
+    session:OnChange()
 end
 
 
@@ -279,5 +287,45 @@ local function OnCommand(event, player, command)
     end
 end
 
+
+function Session:ExpireItems()
+    -- assign items on expire
+    local anyExpired = false
+    for i, item in ipairs(self.items) do
+        if item.status == Status.BIDDING then
+            if item.expiration <  GetGameTime() then
+                self.items[i].status = Status.ASSIGNED
+                anyExpired = true
+            end
+        end
+    end
+    return anyExpired
+end
+
+local function OnTimedLuaEvent(eventId, delay, repeats)
+    -- loop through sessions
+    for instanceId, session in pairs(Sessions) do
+        print("session!")
+        local anyExpired = session:ExpireItems()
+        if anyExpired then
+            session:OnChange()
+        end
+    end
+end
+
 RegisterPlayerEvent(PLAYER_EVENT_ON_COMMAND, OnCommand)
 RegisterPacketEvent(CMSG_LOOT, PACKET_EVENT_ON_PACKET_RECEIVE, OnLootFrameOpen)
+CreateLuaEvent(OnTimedLuaEvent, 1000, 0) -- ( function, delay, repeats )
+
+local function DoPayoutGold(player, payout)
+    -- if (payout + player:GetCoinage()) > COINAGE_MAX then
+    --     SendMail(DR.Config.mail.subject, string.format(DR.Config.mail.body, player:GetName()),
+    --         player:GetGUIDLow(), DR.Config.mail.senderGUID, DR.Config.mail.stationary, 0, payout)
+    --     AIO.Handle(player, ADDON_NAME, "SentPayoutByMail")
+    -- else
+    --     player:ModifyMoney(payout)
+    -- end
+end
+function DKPHandlers.RequestPayout(player)
+    --
+end

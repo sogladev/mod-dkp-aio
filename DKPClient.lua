@@ -17,6 +17,7 @@ local Status = {
   PENDING = 1,
   BIDDING = 2,
   ASSIGNED = 3,
+  CLAIMED = 4,
 }
 
 local Separator = {
@@ -37,7 +38,7 @@ end
 
 -- Handlers
 function DKPHandlers.ShowFrame(player)
-    frame:Show()
+    DKP.client.window:Show()
 end
 
 function DKP.Split(str, sep)
@@ -295,8 +296,16 @@ function Client:ConfigureRow(row, item)
         row.bidButton:Enable()
         row.bidButton:SetText("Bid")
     elseif item.status == Status.ASSIGNED then
-        row.bidButton:Enable()
-        row.bidButton:SetText("Claim")
+        if item.topBidder == UnitName("player") then
+            row.bidButton:SetText("Claim")
+            row.bidButton:Enable()
+        else
+            row.bidButton:SetText("")
+            row.bidButton:Disable()
+        end
+    elseif item.status == Status.CLAIMED then
+        row.bidButton:SetText("Claimed")
+        row.bidButton:Disable()
     else
         row.bidButton:Disable()
         row.bidButton:SetText("Pending")
@@ -306,10 +315,7 @@ function Client:ConfigureRow(row, item)
     row.topBidAmountText:SetText(item.bid ~= 0 and item.bid or "No bid")
 
     row.countdownBar:CountdownItem(item)
-
 end
-
-
 
 
 -- Create auction rows
@@ -397,11 +403,12 @@ function Client:CreateRow(parent, item)
         self.bidBox:ClearFocus()
         local item = self.item
         if not item then return end
-        -- if self.bidButton:GetText() == "OS" then
-        -- elseif item.pendingBid then
-        item.pendingBid = 69 -- TODO: read value set from bidBox
-        AIO.Handle(ADDON_NAME, "RequestBid", item.id, item.pendingBid)
-        -- end
+        if self.bidButton:GetText() == "Claim" then
+            AIO.Handle(ADDON_NAME, "RequestClaim", item.id)
+        else
+            item.pendingBid = 69 -- TODO: read value set from bidBox
+            AIO.Handle(ADDON_NAME, "RequestBid", item.id, item.pendingBid)
+        end
     end
 
 
@@ -498,8 +505,8 @@ local client = Client:Create()
 DKP.client = client
 client.window = client:CreateWindow()
 -- add test items
-local testStr = "1^39252^1+2^39251^1+3^23070^1"
+-- local testStr = "1^39252^1+2^39251^1+3^23070^1"
 -- local testStr = "1^39252^1+2^39251^1+3^23070^1+4^23000^1+5^22801^1+6^22808^1+7^22803^1+8^22353^1+9^22804^1+10^22805^1" -- cache
-DKPHandlers.SyncResponse(nil, testStr)
+-- DKPHandlers.SyncResponse(nil, testStr)
 
 print(DKP.items)
