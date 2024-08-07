@@ -209,6 +209,78 @@ function Client:CreateWindow()
     return frame
 end
 
+
+local CountdownBar = {}
+CountdownBar.__index = CountdownBar
+DKP.CountdownBar = CountdownBar
+local function UpdateCountdownBar(self, dt)
+    local item = self.item
+    if not item or not self.rawValue then
+        self:Hide()
+        return
+    end
+    if item.status ~= Status.BIDDING then
+        self:Hide()
+        return
+    end
+    local remaining = math.max(0, self.rawValue - (dt or 0))
+    self.rawValue = remaining
+    if not self.isCountingDown and math.floor(remaining) < (item.countdown or 0) then
+        self.isCountingDown = true
+        self:SetMinMaxValues(0, item.countdown)
+        self:SetAlpha(0.2)
+        if self.topBidder == "playername" then
+            self:SetStatusBarColor(0, 1, 0)
+        else
+            self:SetStatusBarColor(1, 0, 0)
+        end
+    end
+    if remaining == 0 then
+        self:Hide()
+    else
+        self:Show()
+        self:SetValue(remaining)
+    end
+end
+
+function CountdownBar:Create(parent)
+  local countdownBar = CreateFrame("StatusBar", nil, parent)
+  countdownBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8", "BACKGROUND")
+  countdownBar:SetScript("OnUpdate", function(self, dt) UpdateCountdownBar(self, dt) end)
+
+  -- Add inheritence from CountdownBar
+  local meta = getmetatable(countdownBar)
+  setmetatable(countdownBar, {
+    __index = function(t, k)
+      return CountdownBar[k] or meta.__index[k]
+    end
+  })
+
+--   Floot:AddMessageSystem(countdownBar)
+
+  return countdownBar
+end
+
+function CountdownBar:CountdownItem(item)
+  self.item = item
+  self.topBidder = item.topBidder
+  self.rawValue = (item and item.expiration or 0) - time()
+  self.isCountingDown = false
+
+--   local duration = item and item.bidDuration or 0
+--   local countdown = item and item.countdown or 0
+  local duration = 15
+  local countdown = 5
+  item.duration = duration
+  item.countdown = countdown
+
+  self:SetMinMaxValues(countdown, duration)
+  self:SetStatusBarColor(1, 1, 1)
+  self:SetAlpha(0.06)
+
+  UpdateCountdownBar(self)
+end
+
 function Client:ConfigureRow(row, item)
     local minBid = 100
     row.watchButton.texture:SetTexture("Interface\\LFGFrame\\BattlenetWorking4")
@@ -233,7 +305,11 @@ function Client:ConfigureRow(row, item)
     row.topBidText:SetText(item.highestBidder ~= "n" and "Top Bid: "..item.highestBidder or "")
     row.topBidAmountText:SetText(item.bid ~= 0 and item.bid or "No bid")
 
+    row.countdownBar:CountdownItem(item)
+
 end
+
+
 
 
 -- Create auction rows
@@ -384,6 +460,10 @@ function Client:CreateRow(parent, item)
     topBidAmountText:SetPoint("TOP", topBidText, "BOTTOM")
     topBidAmountText:SetHeight(22)
     row.topBidAmountText = topBidAmountText
+
+    row.countdownBar = CountdownBar:Create(row)
+    row.countdownBar:SetAllPoints()
+
     return row
 end
 

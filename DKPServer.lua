@@ -105,6 +105,7 @@ function Session:StartBids()
         if item.status == Status.PENDING then
             self.items[i].status = Status.BIDDING
             local expiration = GetGameTime() + 10 -- game time in seconds
+            print("Expiration ", expiration)
             self.items[i].expiration = expiration -- userdata
         end
     end
@@ -155,6 +156,8 @@ function Session:HandleBid(player, id, bid)
     self.items[id].bid = bid
     self.items[id].highestBidder = player:GetName()
     self.items[id].highestBidderGUID = player:GetGUID()
+    -- update expiration to countdown or add + 10
+    self.items[id].expiration = GetGameTime() + 10 -- game time in seconds
     return true
 end
 
