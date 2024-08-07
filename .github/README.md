@@ -3,6 +3,9 @@
 (WIP) This is a module compatible for [AzerothCore](http://www.azerothcore.org) that implements a DKP system with modified ElunaLUA and AIO
 
 
+https://github.com/user-attachments/assets/07f8fa4a-1a59-4ca6-8b88-098e2bb627f7
+
+
 
 ## Features
 * GDKP without requiring loot master
