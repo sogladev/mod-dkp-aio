@@ -131,6 +131,7 @@ function Client:Create()
   local client = {
     sessions = {},
     activeSession = nil,
+    rows = {},
     -- filter = DKP.Filter:CreateComposite(),
     -- classFilter = DKP.Filter:CreateForPlayerClassId(DKP.playerClass),
     -- watchedFilter = DKP.Filter:CreateForWatched()
@@ -217,9 +218,11 @@ end
 -- Create auction rows
 function Client:CreateRow(parent, item)
     local row = CreateFrame("Frame", nil, parent)
+
     row:SetSize(scrollWidth, 40)
 
     local id = item.id
+    row.item = item
 
     -- Row background
     local bg = row:CreateTexture(nil, "BACKGROUND")
@@ -267,6 +270,25 @@ function Client:CreateRow(parent, item)
     tooltipRegion:SetPoint("TOPLEFT", image)
     tooltipRegion:SetPoint("BOTTOMRIGHT", linkText)
 
+    tooltipRegion:HookScript("OnEnter", function() row:ShowItemTooltip() end)
+    tooltipRegion:HookScript("OnLeave", function() GameTooltip:Hide() end)
+    tooltipRegion:HookScript("OnClick", function(_, button) row:OnTooltipClicked(button) end)
+    function row:ShowItemTooltip()
+        local item = self.item
+        if not item or not item.itemInfo or not item.itemInfo.link then return end
+        GameTooltip:SetOwner(UIParent, "ANCHOR_CURSOR")
+        GameTooltip:SetHyperlink(item.itemInfo.link)
+    end
+    function row:OnTooltipClicked(button)
+        -- An unmodified click would open the default item tooltip frame
+        -- This seems unnecessary, so is disabled for now
+        if not IsModifiedClick() then return end
+        local item = self.item
+        if not item or not item.itemInfo or not item.itemInfo.link then return end
+        -- Handles pasting link to chat frame, dressup, etc.
+        SetItemRef(item.itemInfo.link, item.itemInfo.link, button)
+    end
+
     -- RTL layout
     local bidButton = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
     bidButton:SetText("Bid")
@@ -286,7 +308,7 @@ function Client:CreateRow(parent, item)
     bidBox:SetAutoFocus(false)
     bidBox:SetNumeric(true)
     bidBox:SetMaxLetters(7)
-    bidBox:SetTextInsets(0, 13, 0, 0)
+    -- bidBox:SetTextInsets(0, 13, 0, 0)
     bidBox:SetJustifyH("CENTER")
     bidBox:SetPoint("RIGHT", incrementButton, "LEFT", 2, 0)
     bidBox:SetSize(75, 25)
@@ -332,11 +354,22 @@ function Client:CreateRow(parent, item)
 end
 
 
+function Client:HideRows()
+    for i, row in ipairs(self.rows) do
+        row:Hide()
+    end
+end
+
+
 function Client:Populate(items)
+    self:HideRows()
     local previousRow
     for i, item in ipairs(items) do
-        local row = self:CreateRow(self.window.content, item)
+        -- delete row at index
+        local row = self.rows[i] or self:CreateRow(self.window.content, item)
+        row:Show()
         self:ConfigureRow(row, item)
+        self.rows[i] = row
         if previousRow then
             row:SetPoint("TOP", previousRow, "BOTTOM", 0, -5)
         else
@@ -351,8 +384,8 @@ local client = Client:Create()
 DKP.client = client
 client.window = client:CreateWindow()
 -- add test items
-local testStr = "1^39252^1+2^39251^1+3^23070^1"
--- local testStr = "1^39252^1+2^39251^1+3^23070^1+4^23000^1+5^22801^1+6^22808^1+7^22803^1+8^22353^1+9^22804^1+10^22805^1" -- cache
+-- local testStr = "1^39252^1+2^39251^1+3^23070^1"
+local testStr = "1^39252^1+2^39251^1+3^23070^1+4^23000^1+5^22801^1+6^22808^1+7^22803^1+8^22353^1+9^22804^1+10^22805^1" -- cache
 DKPHandlers.SyncResponse(nil, testStr)
 
 print(DKP.items)
