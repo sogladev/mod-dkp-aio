@@ -80,6 +80,8 @@ function Item:Decode(encodedStr)
     local item = {
         id = tonumber(elements[1]),
         status = tonumber(elements[3]),
+        bid = tonumber(elements[4]),
+        highestBidder = elements[5],
     }
     itemInfo:PopulateStaticProperties()
     item.itemInfo = itemInfo
@@ -101,6 +103,7 @@ function DKPHandlers.SyncResponse(player, encodedSession)
     -- print
     for _, item in pairs(DKP.items) do
         DKP.print(string.format("%d %s", item.id, item.itemInfo.link or ""))
+        DKP.print(string.format("Status %d", item.status))
     end
     DKP.client.window:Show()
     DKP.client:Populate(DKP.items)
@@ -140,10 +143,10 @@ function Client:Create()
   return client
 end
 
-local scrollWidth = 535
+local scrollWidth = 585
 function Client:CreateWindow()
     local frame = CreateFrame("Frame", "DKPFrame", UIParent)
-    frame:SetSize(600, 500)
+    frame:SetSize(650, 500)
     frame:SetPoint("CENTER")
     frame:SetToplevel(true)
     frame:SetClampedToScreen(true)
@@ -203,15 +206,29 @@ function Client:CreateWindow()
 end
 
 function Client:ConfigureRow(row, item)
-    local highestBidder = "highestBidder"
-    local topBidAmount = 1234
     local minBid = 100
     row.watchButton.texture:SetTexture("Interface\\LFGFrame\\BattlenetWorking4")
     row.image:SetTexture(item.itemInfo and item.itemInfo.texture or "Interface/Icons/INV_Misc_QuestionMark")
     row.ilvlText:SetText(item.itemInfo and item.itemInfo.ilvl or "?")
     row.linkText:SetText(item.itemInfo.link)
-    row.topBidText:SetText(highestBidder)
-    row.topBidAmountText:SetText(topBidAmount)
+
+    print("ITEM STATUS")
+    print(item.status)
+    print(item.Status)
+    if item.status == Status.BIDDING then
+        row.bidButton:Enable()
+        row.bidButton:SetText("Bid")
+    elseif item.status == Status.ASSIGNED then
+        row.bidButton:Enable()
+        row.bidButton:SetText("Claim")
+    else
+        row.bidButton:Disable()
+        row.bidButton:SetText("Pending")
+    end
+
+    row.topBidText:SetText(item.highestBidder and "Top Bid: "..item.highestBidder or "")
+    row.topBidAmountText:SetText(item.bid ~= 0 and item.bid or "No bid")
+
 end
 
 
@@ -291,10 +308,22 @@ function Client:CreateRow(parent, item)
 
     -- RTL layout
     local bidButton = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-    bidButton:SetText("Bid")
     bidButton:SetPoint("RIGHT", -8, 0)
     bidButton:SetPoint("RIGHT", -4, 0)
     bidButton:SetSize(50, 32)
+    row.bidButton = bidButton
+    bidButton:HookScript("OnClick", function() row:OnBidPressed() end)
+    function row:OnBidPressed(button)
+        self.bidBox:ClearFocus()
+        local item = self.item
+        if not item then return end
+        -- if self.bidButton:GetText() == "OS" then
+        -- elseif item.pendingBid then
+        item.pendingBid = 69 -- TODO: read value set from bidBox
+        AIO.Handle(ADDON_NAME, "RequestBid", item.id, item.pendingBid)
+        -- end
+    end
+
 
     local incrementButton = CreateFrame("Button", nil, row)
     incrementButton:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIcon-ScrollUp-Up")
@@ -312,6 +341,7 @@ function Client:CreateRow(parent, item)
     bidBox:SetJustifyH("CENTER")
     bidBox:SetPoint("RIGHT", incrementButton, "LEFT", 2, 0)
     bidBox:SetSize(75, 25)
+    row.bidBox = bidBox
 
     local minButton = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
     minButton:SetText("Min")
@@ -345,8 +375,8 @@ function Client:CreateRow(parent, item)
 
     local topBidAmountText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     topBidAmountText:SetJustifyH("LEFT")
-    topBidAmountText:SetPoint("LEFT", topBidText)
-    topBidAmountText:SetPoint("RIGHT", topBidText)
+    -- topBidAmountText:SetPoint("LEFT", topBidText)
+    topBidAmountText:SetPoint("RIGHT", topBidText, "RIGHT")
     topBidAmountText:SetPoint("TOP", topBidText, "BOTTOM")
     topBidAmountText:SetHeight(22)
     row.topBidAmountText = topBidAmountText
@@ -384,8 +414,8 @@ local client = Client:Create()
 DKP.client = client
 client.window = client:CreateWindow()
 -- add test items
--- local testStr = "1^39252^1+2^39251^1+3^23070^1"
-local testStr = "1^39252^1+2^39251^1+3^23070^1+4^23000^1+5^22801^1+6^22808^1+7^22803^1+8^22353^1+9^22804^1+10^22805^1" -- cache
+local testStr = "1^39252^1+2^39251^1+3^23070^1"
+-- local testStr = "1^39252^1+2^39251^1+3^23070^1+4^23000^1+5^22801^1+6^22808^1+7^22803^1+8^22353^1+9^22804^1+10^22805^1" -- cache
 DKPHandlers.SyncResponse(nil, testStr)
 
 print(DKP.items)

@@ -43,14 +43,14 @@ local Item = {}
 Item.__index = Item
 DKP.Item = Item
 function Item:CreateForId(index, id)
-    local item = {id=index, itemId=id, status=Status.PENDING}
+    local item = {id=index, itemId=id, bid=0, highestBidder="", status=Status.PENDING}
     setmetatable(item, Item)
     return item
 end
 
 
 function Item:Encode()
-  return table.concat({self.id, self.itemId, self.status}, Separator.LIST_ELEMENT)
+  return table.concat({self.id, self.itemId, self.status, self.bid, self.highestBidder}, Separator.LIST_ELEMENT)
 end
 
 
@@ -98,6 +98,15 @@ function Session:AddItemById(itemId)
 end
 
 
+function Session:SetItemsPendingToBidding()
+  for i, item in ipairs(self.items) do
+    if item.status == Status.PENDING then
+        self.items[i].status = Status.BIDDING
+    end
+  end
+end
+
+
 function Session:SetItemClaimed(itemId)
     self.items[itemId].status = Status.CLAIMED
 end
@@ -135,6 +144,14 @@ function Session:OnChange()
         local player = GetPlayerByGUID(playerGUID)
         DKPHandlers.RequestSync(player)
     end
+end
+
+
+function Session:HandleBid(player, id, bid)
+    self.items[id].bid = bid
+    self.items[id].highestBidder = player:GetName()
+    self.items[id].highestBidderGUID = player:GetGUID()
+    return true
 end
 
 
@@ -186,8 +203,29 @@ function DKPHandlers.RequestSync(player)
 end
 
 
+function DKPHandlers.RequestBid(player, id, bid)
+    PrintInfo(string.format("%s:DKPHandlers.RequestBid(player, id, bid) by account-name (%d-%s)", ADDON_NAME, player:GetAccountId(), player:GetName()))
+    local session = Session:CreateForPlayer(player)
+    local success = session:HandleBid(player, id, bid)
+    if success then
+        session:OnChange()
+    else
+        AIO.Handle(player, ADDON_NAME, "BidResponse", "ReasonForBadBid")
+    end
+
+end
+
+
+function DKPHandlers.RequestStart(player)
+    PrintInfo(string.format("%s:DKPHandlers.RequestStart(player) by account-name (%d-%s)", ADDON_NAME, player:GetAccountId(), player:GetName()))
+    local session = Session:CreateForPlayer(player)
+    session:SetItemsPendingToBidding()
+    session:OnChange()
+end
+
+
 function DKPHandlers.RequestClaim(player, id)
-    PrintInfo(string.format("%s:DKPHandlers.RequestClaim(player) by account-name (%d-%s)", ADDON_NAME, player:GetAccountId(), player:GetName()))
+    PrintInfo(string.format("%s:DKPHandlers.RequestClaim(player, id) by account-name (%d-%s)", ADDON_NAME, player:GetAccountId(), player:GetName()))
     local session = Session:CreateForPlayer(player)
     if not session then
         PrintError("No session found")
@@ -219,6 +257,10 @@ local function OnCommand(event, player, command)
     elseif cmd == "dkp" and arg == "claim" then
         PrintInfo(string.format("%s:OnCommand '.dkp claim' by account-name (%d-%s)", ADDON_NAME, player:GetAccountId(), player:GetName()))
         DKPHandlers.RequestClaim(player, 1) -- id 1 for testing
+        return false
+    elseif cmd == "dkp" and arg == "start" then
+        PrintInfo(string.format("%s:OnCommand '.dkp start' by account-name (%d-%s)", ADDON_NAME, player:GetAccountId(), player:GetName()))
+        DKPHandlers.RequestStart(player)
         return false
     elseif cmd == "dkp" and arg == "test" then
         PrintInfo(string.format("%s:OnCommand '.dkp test' by account-name (%d-%s)", ADDON_NAME, player:GetAccountId(), player:GetName()))
