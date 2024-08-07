@@ -191,10 +191,9 @@ function Client:CreateWindow()
     scrollFrame:SetScrollChild(content)
     frame.content = content
 
-
-
     return frame
 end
+
 
 -- Create auction rows
 function Client:CreateRow(parent, item)
@@ -202,6 +201,8 @@ function Client:CreateRow(parent, item)
     row:SetSize(scrollWidth, 40)
 
     local itemLink = item.itemInfo.link
+    local itemLinkText = itemLink
+    local id = item.id
     local highestBidder = "highestBidder"
     local minBid = 100
 
@@ -212,64 +213,160 @@ function Client:CreateRow(parent, item)
     row.bg = bg
 
     -- Icon
-    local icon = row:CreateTexture(nil, "ARTWORK")
-    icon:SetSize(32, 32)
-    icon:SetPoint("LEFT", 5, 0)
-    icon:SetTexture("Interface/Icons/INV_Misc_QuestionMark") -- Replace with actual icon
-    row.icon = icon
+    -- LTR layout
+    -- Watch button
+    local watchButton = CreateFrame("Button", nil, row)
+    local watchTexture = watchButton:CreateTexture()
+    watchButton.texture = watchTexture;
+    watchButton:SetSize(16, 16)
+    watchTexture:SetTexCoord(0.1, 0.9, 0.1, 0.9);
+    watchTexture:SetAllPoints(watchButton);
+    watchButton:SetNormalTexture(watchTexture);
+    watchButton:SetHighlightTexture("Interface\\BUTTONS\\UI-Panel-MinimizeButton-Highlight");
+    -- watchButton:SetPoint("LEFT", row, "RIGHT", 10, 0)
+    watchButton:SetPoint("LEFT", -4, 0)
+    watchButton.texture:SetTexture("Interface\\LFGFrame\\BattlenetWorking4")
 
-    -- Item link
-    local itemLinkText = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    itemLinkText:SetPoint("LEFT", icon, "RIGHT", 5, 0)
-    itemLinkText:SetText(itemLink)
-    row.itemLinkText = itemLinkText
+    local image = row:CreateTexture(nil, "ARTWORK") -- OVERLAY
+    image:SetSize(32, 32)
+    image:SetPoint("LEFT", watchButton, "RIGHT", 8, 0)
+    image:SetTexture(item.itemInfo and item.itemInfo.texture or "Interface/Icons/INV_Misc_QuestionMark")
 
-    -- Highest bidder
-    local highestBidderText = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    highestBidderText:SetPoint("LEFT", itemLinkText, "RIGHT", 5, 0)
-    highestBidderText:SetText("Highest Bidder: " .. highestBidder)
-    row.highestBidderText = highestBidderText
+    -- icon:SetTexture("Interface/Icons/INV_Misc_QuestionMark") -- Replace with actual icon
+    -- row.icon = icon
 
-    -- Minimum bid
-    local minBidText = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    minBidText:SetPoint("LEFT", highestBidderText, "RIGHT", 5, 0)
-    minBidText:SetText("Min Bid: " .. minBid)
-    row.minBidText = minBidText
+    local ilvlText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    ilvlText:SetTextColor(1, 1, 1)
+    ilvlText:SetPoint("BOTTOMLEFT", image, 1, 1)
+    ilvlText:SetPoint("BOTTOMRIGHT", image, -1, 1)
+    ilvlText:SetJustifyH("CENTER")
+    ilvlText:SetText(item.itemInfo and item.itemInfo.ilvl or "?")
 
-    -- Bid amount input
-    local bidInput = CreateFrame("EditBox", nil, row, "InputBoxTemplate")
-    bidInput:SetSize(50, 30)
-    bidInput:SetPoint("LEFT", minBidText, "RIGHT", 5, 0)
-    bidInput:SetAutoFocus(false)
-    bidInput:SetNumeric(true)
-    bidInput:SetText(minBid)
-    row.bidInput = bidInput
+    local linkText = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    linkText:SetPoint("TOPLEFT", image, "TOPRIGHT", 8, 0)
+    linkText:SetPoint("BOTTOMLEFT", image, "BOTTOMRIGHT", 8, 0)
+    linkText:SetJustifyH("LEFT")
+    linkText:SetText(itemLink)
 
-    -- Up button
-    local upButton = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-    upButton:SetSize(30, 30)
-    upButton:SetPoint("LEFT", bidInput, "RIGHT", 5, 0)
-    upButton:SetText("Up")
-    upButton:SetScript("OnClick", function()
-        local currentBid = tonumber(bidInput:GetText())
-        if currentBid then
-            bidInput:SetText(currentBid + 1)
-        end
-    end)
-    row.upButton = upButton
+    local tooltipRegion = CreateFrame("Button", nil, row)
+    tooltipRegion:SetPoint("TOPLEFT", image)
+    tooltipRegion:SetPoint("BOTTOMRIGHT", linkText)
 
-    -- Bid button
+
+    -- RTL layout
+    local deleteButton = CreateFrame("Button", nil, row, "UIPanelCloseButton")
+    deleteButton:SetPoint("RIGHT", -4, 0)
+    deleteButton:SetSize(24, 24)
+
     local bidButton = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-    bidButton:SetSize(50, 30)
-    bidButton:SetPoint("LEFT", upButton, "RIGHT", 5, 0)
     bidButton:SetText("Bid")
-    bidButton:SetScript("OnClick", function()
-        print("Bidding on auction ID: " .. id)
-    end)
-    row.bidButton = bidButton
+    bidButton:SetPoint("RIGHT", -8, 0)
+    bidButton:SetSize(50, 32)
 
+    local incrementButton = CreateFrame("Button", nil, row)
+    incrementButton:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIcon-ScrollUp-Up")
+    incrementButton:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight")
+    incrementButton:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIcon-ScrollUp-Down")
+    incrementButton:SetDisabledTexture("Interface\\ChatFrame\\UI-ChatIcon-ScrollUp-Disabled")
+    incrementButton:SetPoint("RIGHT", bidButton, "LEFT", -8, 0)
+    incrementButton:SetSize(25, 25)
+
+    local bidBox = CreateFrame("EditBox", "BidType".."BidBox"..id, row, "InputBoxTemplate")
+    bidBox:SetAutoFocus(false)
+    bidBox:SetNumeric(true)
+    bidBox:SetMaxLetters(7)
+    bidBox:SetTextInsets(0, 13, 0, 0)
+    bidBox:SetJustifyH("CENTER")
+    bidBox:SetPoint("RIGHT", incrementButton, "LEFT", 2, 0)
+    bidBox:SetSize(75, 25)
+
+    local minBidBox = CreateFrame("EditBox", "minBid".."MinBidBox"..id, row, "InputBoxTemplate")
+    minBidBox:SetAutoFocus(false)
+    minBidBox:SetNumeric(true)
+    minBidBox:SetMaxLetters(7)
+    minBidBox:SetTextInsets(0, 13, 0, 0)
+    minBidBox:SetJustifyH("CENTER")
+    minBidBox:SetPoint("RIGHT", deleteButton, "LEFT", 2, 0)
+    minBidBox:SetSize(75, 25)
+
+    local minButton = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+    minButton:SetText("Min")
+    minButton:SetNormalFontObject("GameFontNormalSmall")
+    minButton:SetHighlightFontObject("GameFontNormalSmall")
+    minButton:SetPoint("RIGHT", bidBox, "LEFT", -5, 0)
+    minButton:SetPushedTextOffset(0, 0)
+    minButton:SetSize(32, 20)
+
+    local enterBidText = bidBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    enterBidText:SetPoint("BOTTOMLEFT", bidBox, "TOPLEFT", -2, -3)
+    enterBidText:SetJustifyH("LEFT")
+    enterBidText:SetHeight(14)
+
+    local enterMinBidText = minBidBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    enterMinBidText:SetPoint("BOTTOMLEFT", minBidBox, "TOPLEFT", -2, -3)
+    enterMinBidText:SetJustifyH("LEFT")
+    enterMinBidText:SetHeight(14)
+
+    local countdownButton = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+    countdownButton:SetText("Countdown")
+    countdownButton:SetPoint("RIGHT", -120, 8)
+    countdownButton:SetSize(80, 16)
+
+    local closeButton = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+    closeButton:SetText("Close")
+    closeButton:SetPoint("RIGHT", -120, -8)
+    closeButton:SetSize(80, 16)
+
+    local reopenButton = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+    reopenButton:SetText("Reopen")
+    reopenButton:SetPoint("RIGHT", -120, 8)
+    reopenButton:SetSize(80, 16)
+
+    local restartAuctionButton = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+    restartAuctionButton:SetText("Restart")
+    restartAuctionButton:SetPoint("RIGHT", -120, -8)
+    restartAuctionButton:SetSize(80, 16)
+    --restartAuctionButton:Disable() -- Disabled since bug, ImportBids table index nil
+
+    local errorText = bidBox:CreateFontString(nil, "OVERLAY", "GameFontRedSmall")
+    errorText:SetPoint("TOP", bidBox, "BOTTOM", 0, 3)
+    errorText:SetJustifyH("LEFT")
+    errorText:SetHeight(14)
+
+    local bidBoxGold = bidBox:CreateTexture(nil, "OVERLAY")
+    bidBoxGold:SetTexture("Interface\\MoneyFrame\\UI-GoldIcon")
+    bidBoxGold:SetPoint("RIGHT", -6, 0)
+    bidBoxGold:SetSize(13, 13)
+
+    local minBidBoxGold = minBidBox:CreateTexture(nil, "OVERLAY")
+    minBidBoxGold:SetTexture("Interface\\MoneyFrame\\UI-GoldIcon")
+    minBidBoxGold:SetPoint("RIGHT", -6, 0)
+    minBidBoxGold:SetSize(13, 13)
+
+    local topBidText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    topBidText:SetJustifyH("LEFT")
+    topBidText:SetPoint("TOP", enterBidText)
+    topBidText:SetPoint("LEFT", minButton, "LEFT", -200, 0)
+    topBidText:SetHeight(14)
+
+    local topBidAmountText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    topBidAmountText:SetJustifyH("LEFT")
+    topBidAmountText:SetPoint("LEFT", topBidText)
+    topBidAmountText:SetPoint("RIGHT", topBidText)
+    topBidAmountText:SetPoint("TOP", topBidText, "BOTTOM")
+    topBidAmountText:SetHeight(22)
+
+    -- SetBids(nil, nil, nil)
+    -- SetErrorText(nil)
+    -- SetMasterButtons(false)
+    -- SetMasterControlsEnabled(false)
+    reopenButton:Disable()
+    reopenButton:Hide()
+    restartAuctionButton:Disable()
+    restartAuctionButton:Hide()
     return row
 end
+
 
 function Client:Populate(items)
     local previousRow
